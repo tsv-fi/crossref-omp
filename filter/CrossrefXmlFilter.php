@@ -219,7 +219,9 @@ class CrossrefXmlFilter extends NativeExportFilter
 
 		// Contributors: editors and authors
 		if ($authors = $publication->getData('authors')) {
-			$bookMetadataNode->appendChild($this->createContributorsNode($doc, $authors, $locale));
+            if ($contributorsNode = $this->createContributorsNode($doc, $authors, $locale)) {
+                $bookMetadataNode->appendChild($contributorsNode);
+            }
 		}
 
 		// Book title
@@ -362,9 +364,10 @@ class CrossrefXmlFilter extends NativeExportFilter
 
 		// Chapter authors        
         if ($chapter->getAuthors()) {
-            $contentItemNode->appendChild($this->createContributorsNode($doc, $chapter->getAuthors(), $locale, true));
+            if ($contributorsNode = $this->createContributorsNode($doc, $chapter->getAuthors(), $locale, true)) {
+                $contentItemNode->appendChild($contributorsNode);
+            }
         }
-        
 
 		// Chapter title
 		$titlesNode = $doc->createElementNS($deployment->getNamespace(), "titles");
@@ -467,14 +470,13 @@ class CrossrefXmlFilter extends NativeExportFilter
 			} else {
 				$personNameNode->setAttribute('sequence', 'additional');
 			}
-
-			$familyNames = $author->getFamilyName(null);
-			$givenNames = $author->getGivenName(null);
 			
 			$personNameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($locale));
 
-            $givenName = $givenNames[$locale] ?? $author->getLocalizedGivenName();
-            $familyName = $familyNames[$locale] ?? $author->getLocalizedFamilyName();
+            $familyNames = $author->getFamilyName(null);
+			$givenNames = $author->getGivenName(null);
+            $givenName = !empty($givenNames[$locale]) ? $givenNames[$locale] : $author->getLocalizedGivenName();
+            $familyName = !empty($familyNames[$locale]) ? $familyNames[$locale] : $author->getLocalizedFamilyName();
         
 			// Check if both givenName and familyName is set for the submission language.
 			if ($givenName && $familyName) {
@@ -482,6 +484,20 @@ class CrossrefXmlFilter extends NativeExportFilter
 				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($familyName), ENT_COMPAT, 'UTF-8')));
 			} else {
 				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($givenName), ENT_COMPAT, 'UTF-8')));
+			}
+
+            //Affiliation
+            if ($author->getAffiliation($locale)){
+                $affiliationText = htmlspecialchars(trim($author->getAffiliation($locale)), ENT_COMPAT, 'UTF-8');
+                $affiliationNode = $doc->createElementNS(
+                    $deployment->getNamespace(),
+                    'affiliation',
+                    $affiliationText
+                );
+                $personNameNode->appendChild($affiliationNode);
+            }
+			if ($author->getData('orcid')) {
+				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $author->getData('orcid')));
 			}
 
 			$altNameNode = null;
@@ -511,23 +527,14 @@ class CrossrefXmlFilter extends NativeExportFilter
 			if ($hasAltName && $altNameNode) {
 				$personNameNode->appendChild($altNameNode);
 			}
-            //Affiliation
-            if ($author->getAffiliation($locale)){
-                $affiliationText = htmlspecialchars(trim($author->getAffiliation($locale)), ENT_COMPAT, 'UTF-8');
-                $affiliationNode = $doc->createElementNS(
-                    $deployment->getNamespace(),
-                    'affiliation',
-                    $affiliationText
-                );
-                $personNameNode->appendChild($affiliationNode);
-            }
-			if ($author->getData('orcid')) {
-				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $author->getData('orcid')));
-			}
 
 			$contributorsNode->appendChild($personNameNode);
 			$isFirst = false;
 		}
+
+        if (!$contributorsNode->hasChildNodes()) {
+            return null;
+        }
 
 		return $contributorsNode;
 	}

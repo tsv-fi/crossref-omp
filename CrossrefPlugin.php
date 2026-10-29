@@ -25,6 +25,8 @@ use APP\plugins\IDoiRegistrationAgency;
 use APP\services\ContextService;
 use APP\submission\Submission;
 use Illuminate\Support\Collection;
+use PKP\components\forms\context\PKPDoiRegistrationSettingsForm;
+use PKP\components\forms\FormComponent;
 use PKP\context\Context;
 use PKP\doi\RegistrationAgencySettings;
 use PKP\plugins\GenericPlugin;
@@ -106,7 +108,23 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
 
         Hook::add('Doi::markRegistered', [$this, 'editMarkRegisteredParams']);
         Hook::add('DoiListPanel::setConfig', [$this, 'addRegistrationAgencyName']);
-    }    
+        Hook::add('Form::config::before', [$this, 'removeAutomaticDepositField']);
+    }
+
+    /**
+     * Remove the automatic deposit option from the DOI registration settings form.
+     * OMP does not schedule the DepositDois task, so the option would have no effect.
+     *
+     * @param string $hookName Form::config::before
+     */
+    public function removeAutomaticDepositField(string $hookName, FormComponent $form): bool
+    {
+        if ($form instanceof PKPDoiRegistrationSettingsForm) {
+            $form->removeField(Context::SETTING_DOI_AUTOMATIC_DEPOSIT);
+        }
+
+        return Hook::CONTINUE;
+    }
 
     /**
      * Add properties for Crossref to the DOI entity for storage in the database.

@@ -36,10 +36,10 @@ class CrossrefExportPlugin extends DOIPubIdExportPlugin {
     public const CROSSREF_STATUS_FAILED = 'failed';
     public const CROSSREF_API_DEPOSIT_OK = 200;
     public const CROSSREF_API_DEPOSIT_ERROR_FROM_CROSSREF = 403;
-    public const CROSSREF_API_URL = 'https://test.crossref.org/v2/deposits';
+    public const CROSSREF_API_URL = 'https://api.crossref.org/v2/deposits';
     //TESTING
     public const CROSSREF_API_URL_DEV = 'https://test.crossref.org/v2/deposits';
-    public const CROSSREF_API_STATUS_URL = 'https://test.crossref.org/servlet/submissionDownload';
+    public const CROSSREF_API_STATUS_URL = 'https://doi.crossref.org/servlet/submissionDownload';
     //TESTING
     public const CROSSREF_API_STATUS_URL_DEV = 'https://test.crossref.org/servlet/submissionDownload';
     // The name of the setting used to save the registered DOI and the URL with the deposit status.
@@ -317,6 +317,7 @@ class CrossrefExportPlugin extends DOIPubIdExportPlugin {
             );
         } catch (RequestException $e) {
             $returnMessage = $e->getMessage();
+            error_log('Crossref deposit failed: ' . $returnMessage . ($e->hasResponse() ? PHP_EOL . $e->getResponse()->getBody() : ''));
             if ($e->hasResponse()) {
                 $eResponseBody = $e->getResponse()->getBody();
                 $eStatusCode = $e->getResponse()->getStatusCode();
@@ -349,6 +350,7 @@ class CrossrefExportPlugin extends DOIPubIdExportPlugin {
         $failureCountNode = $xmlDoc->getElementsByTagName('failure_count')->item(0);
         $failureCount = (int) $failureCountNode->nodeValue;
         if ($failureCount > 0) {
+            error_log('Crossref deposit failed: ' . $response->getBody());
             $status = Doi::STATUS_ERROR;
             $result = false;
         } else {
