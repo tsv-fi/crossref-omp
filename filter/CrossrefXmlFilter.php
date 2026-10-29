@@ -37,6 +37,8 @@ class CrossrefXmlFilter extends NativeExportFilter
     // Maximum name lengths in the Crossref 4.3.7 schema
     public const SURNAME_MAX_LENGTH = 45;
     public const GIVEN_NAME_MAX_LENGTH = 35;
+    public const AFFILIATIONS_MAX_COUNT = 5;
+    public const AFFILIATION_MAX_LENGTH = 512;
 
     /**
      * Constructor
@@ -262,7 +264,7 @@ class CrossrefXmlFilter extends NativeExportFilter
 		}
 
 		// Book publication date
-		$datePublished = $submission->getDatePublished();
+		$datePublished = $publication->getData('datePublished');
 		$publicationDateNode = $doc->createElementNS($deployment->getNamespace(), "publication_date");
 		$publicationDateNode->setAttribute('media_type', 'online');
 		$publicationDateNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'month', $this->xmlEscape( date('m', strtotime($datePublished)) )));
@@ -407,7 +409,7 @@ class CrossrefXmlFilter extends NativeExportFilter
 		}
 
 		// Date published
-		$datePublished = $submission->getDatePublished();
+		$datePublished = $publication->getData('datePublished');
 		$publicationDateNode = $doc->createElementNS($deployment->getNamespace(), "publication_date");
 		$publicationDateNode->setAttribute('media_type', 'online');
 		$publicationDateNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'month', $this->xmlEscape( date('m', strtotime($datePublished)) )));
@@ -453,8 +455,9 @@ class CrossrefXmlFilter extends NativeExportFilter
                 : [$submission->getBestId()],
             null,
             null,
-            true
-        );        
+            true,
+            ''
+        );
 
         $doiDataNode = $doc->createElementNS($deployment->getNamespace(), "doi_data");
 		$doiDataNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'doi', $this->xmlEscape($doi)));
@@ -514,18 +517,19 @@ class CrossrefXmlFilter extends NativeExportFilter
 			}
 			$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', $this->xmlEscape(mb_substr($familyName, 0, self::SURNAME_MAX_LENGTH))));
 
-            //Affiliation
-            if ($author->getAffiliation($locale)){
-                $affiliationText = htmlspecialchars(trim($author->getAffiliation($locale)), ENT_COMPAT, 'UTF-8');
+            // Affiliations: the ROR name when the affiliation has a ROR ID, otherwise the entered name
+            $affiliationNames = array_filter(array_map(fn ($name) => trim((string) $name), $author->getLocalizedAffiliationNames($locale)));
+            foreach (array_slice($affiliationNames, 0, self::AFFILIATIONS_MAX_COUNT) as $affiliationName) {
                 $affiliationNode = $doc->createElementNS(
                     $deployment->getNamespace(),
                     'affiliation',
-                    $affiliationText
+                    $this->xmlEscape(mb_substr($affiliationName, 0, self::AFFILIATION_MAX_LENGTH))
                 );
                 $personNameNode->appendChild($affiliationNode);
             }
 			if ($orcid = $this->getDepositableOrcid($author)) {
 				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $orcid));
+				$node->setAttribute('authenticated', $author->getData('orcidIsVerified') ? 'true' : 'false');
 			}
 
 			$altNameNode = null;

@@ -1,5 +1,7 @@
 ### OMPCrossref Plugin
 
+OMP 3.5
+
 #### Introduction
 This plugin registers DOIS for monographs and chapters for DOI provider [Crossref.org](https://crossref.org).
 

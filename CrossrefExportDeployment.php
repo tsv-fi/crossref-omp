@@ -32,11 +32,6 @@ class CrossrefExportDeployment extends PKPImportExportDeployment
     /** @var CrossrefExportPlugin $_plugin The current import/export plugin */
     public CrossrefExportPlugin $_plugin;
 
-    public function getCache()
-    {
-        return $this->_plugin->getCache();
-    }
-
     /**
      * Constructor
      *

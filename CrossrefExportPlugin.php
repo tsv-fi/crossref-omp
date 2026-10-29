@@ -45,11 +45,6 @@ class CrossrefExportPlugin extends DOIPubIdExportPlugin {
     // The name of the setting used to save the registered DOI and the URL with the deposit status.
     public const CROSSREF_DEPOSIT_STATUS = 'depositStatus';
 
-	//private const EXPORT_STATUS_ANY = '';
-	public const EXPORT_STATUS_NOT_DEPOSITED    = 'notDeposited';
-	public const EXPORT_STATUS_MARKEDREGISTERED = 'markedRegistered';
-	public const EXPORT_STATUS_REGISTERED       = 'registered';
-
     protected CrossrefPlugin $agencyPlugin;
 
     public function __construct(CrossrefPlugin $agencyPlugin)
@@ -111,80 +106,11 @@ class CrossrefExportPlugin extends DOIPubIdExportPlugin {
     }
 
     /**
-     * @copydoc PubObjectsExportPlugin::getStatusMessage()
-     */
-    public function getStatusMessage($request): ?string
-    {
-        // Application is set to sandbox mode and will not run the features of plugin
-        if (Config::getVar('general', 'sandbox', false)) {
-            error_log('Application is set to sandbox mode and will not have any interaction with crossref external service');
-            return __('common.sandbox');
-        }
-
-        // if the failure occurred on request and the message was saved
-        // return that message
-        $submissionId = $request->getUserVar('submissionId');
-        $submission = Repo::submission()->get((int)$submissionId);
-        $failedMsg = $submission->getData('doiObject')->getData($this->getFailedMsgSettingName());
-        if (!empty($failedMsg)) {
-            return $failedMsg;
-        }
-
-        $context = $request->getContext();
-
-        $httpClient = Application::get()->getHttpClient();
-        try {
-            $response = $httpClient->request(
-                'POST',
-                $this->isTestMode($context) ? static::CROSSREF_API_STATUS_URL_DEV : static::CROSSREF_API_STATUS_URL,
-                [
-                    'form_params' => [
-                        'doi_batch_id' => $request->getUserVar('batchId'),
-                        'type' => 'result',
-                        'usr' => $this->getSetting($context->getId(), 'username'),
-                        'pwd' => $this->getSetting($context->getId(), 'password'),
-                    ]
-                ]
-            );
-        } catch (RequestException $e) {
-            $returnMessage = $e->getMessage();
-            if ($e->hasResponse()) {
-                $returnMessage = $e->getResponse()->getBody() . ' (' . $e->getResponse()->getStatusCode() . ' ' . $e->getResponse()->getReasonPhrase() . ')';
-            }
-            return __('plugins.importexport.common.register.error.mdsError', ['param' => $returnMessage]);
-        }
-
-        return (string) $response->getBody();
-    }
-
-    /**
-     * Get a list of additional setting names that should be stored with the objects.
-     *
-     * @return array
-     */
-    protected function _getObjectAdditionalSettings(): array
-    {
-        return array_merge(parent::_getObjectAdditionalSettings(), [
-            $this->getDepositBatchIdSettingName(),
-            $this->getFailedMsgSettingName(),
-            $this->getSuccessMsgSettingName(),
-        ]);
-    }
-
-    /**
      * @copydoc ImportExportPlugin::getPluginSettingsPrefix()
      */
     public function getPluginSettingsPrefix()
     {
         return 'crossrefplugin';
-    }
-
-    /**
-     * @copydoc DOIPubIdExportPlugin::getSettingsFormClassName()
-     */
-    public function getSettingsFormClassName(): string
-    {
-        throw new Exception('DOI settings no longer managed via plugin settings form.');
     }
 
     /**
