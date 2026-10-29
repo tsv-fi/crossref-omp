@@ -34,6 +34,9 @@ use PKP\db\DAORegistry;
 
 class CrossrefXmlFilter extends NativeExportFilter
 {
+    // Maximum name lengths in the Crossref 4.3.7 schema
+    public const SURNAME_MAX_LENGTH = 45;
+    public const GIVEN_NAME_MAX_LENGTH = 35;
 
     /**
      * Constructor
@@ -219,15 +222,34 @@ class CrossrefXmlFilter extends NativeExportFilter
 
 		// Contributors: editors and authors
 		if ($authors = $publication->getData('authors')) {
+            // For an edited volume only the volume editors are listed at book level,
+            // the chapter authors are listed in their chapters
+            if ($submission->getData('workType') == Submission::WORK_TYPE_EDITED_VOLUME) {
+                $volumeEditors = [];
+                foreach ($authors as $author) {
+                    if ($author->getData('isVolumeEditor')) {
+                        $volumeEditors[] = $author;
+                    }
+                }
+                if (!empty($volumeEditors)) {
+                    $authors = $volumeEditors;
+                }
+            }
             if ($contributorsNode = $this->createContributorsNode($doc, $authors, $locale)) {
                 $bookMetadataNode->appendChild($contributorsNode);
             }
 		}
 
-		// Book title
+		// Book title, with its prefix ("The", "Le") and as plain text. A title without the prefix
+		// does not match the title Crossref already has for the ISBN and the deposit is refused.
+		$titleLocale = null;
+		$title = $this->plainText($publication->getLocalizedData('title', $locale, $titleLocale));
+		if ($titleLocale && ($prefix = $this->plainText($publication->getData('prefix', $titleLocale)))) {
+			$title = $prefix . ' ' . $title;
+		}
 		$titlesNode = $doc->createElementNS($deployment->getNamespace(), "titles");
-		$titlesNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), "title", $this->xmlEscape($publication->getLocalizedData('title', $locale))));
-		if ($subtitle = $publication->getLocalizedData('subtitle', $locale)){
+		$titlesNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), "title", $this->xmlEscape($title)));
+		if ($titleLocale && ($subtitle = $this->plainText($publication->getData('subtitle', $titleLocale)))){
 			$titlesNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'subtitle', $this->xmlEscape($subtitle)));
 		}
 		$bookMetadataNode->appendChild($titlesNode);
@@ -457,6 +479,20 @@ class CrossrefXmlFilter extends NativeExportFilter
 
 		$isFirst = true;
 		foreach ($authors as $author) {
+            $familyNames = (array) $author->getFamilyName(null);
+			$givenNames = (array) $author->getGivenName(null);
+            $givenName = $this->cleanName($givenNames[$locale] ?? null) ?: $this->cleanName($author->getLocalizedGivenName());
+            $familyName = $this->cleanName($familyNames[$locale] ?? null) ?: $this->cleanName($author->getLocalizedFamilyName());
+
+            // Crossref requires a surname: if only a given name is available, use it as the surname
+            if ($familyName === '') {
+                $familyName = $givenName;
+                $givenName = '';
+            }
+            if ($familyName === '') {
+                continue;
+            }
+
 			$personNameNode = $doc->createElementNS($deployment->getNamespace(), 'person_name');
 
 			if ($isChapter || !$author->getData('isVolumeEditor')) {
@@ -473,18 +509,10 @@ class CrossrefXmlFilter extends NativeExportFilter
 			
 			$personNameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($locale));
 
-            $familyNames = $author->getFamilyName(null);
-			$givenNames = $author->getGivenName(null);
-            $givenName = !empty($givenNames[$locale]) ? $givenNames[$locale] : $author->getLocalizedGivenName();
-            $familyName = !empty($familyNames[$locale]) ? $familyNames[$locale] : $author->getLocalizedFamilyName();
-        
-			// Check if both givenName and familyName is set for the submission language.
-			if ($givenName && $familyName) {
-				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars(ucfirst($givenName), ENT_COMPAT, 'UTF-8')));
-				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($familyName), ENT_COMPAT, 'UTF-8')));
-			} else {
-				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($givenName), ENT_COMPAT, 'UTF-8')));
+			if ($givenName !== '') {
+				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', $this->xmlEscape(mb_substr($givenName, 0, self::GIVEN_NAME_MAX_LENGTH))));
 			}
+			$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', $this->xmlEscape(mb_substr($familyName, 0, self::SURNAME_MAX_LENGTH))));
 
             //Affiliation
             if ($author->getAffiliation($locale)){
@@ -496,32 +524,39 @@ class CrossrefXmlFilter extends NativeExportFilter
                 );
                 $personNameNode->appendChild($affiliationNode);
             }
-			if ($author->getData('orcid')) {
-				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $author->getData('orcid')));
+			if ($orcid = $this->getDepositableOrcid($author)) {
+				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $orcid));
 			}
 
 			$altNameNode = null;
             $hasAltName = false;
-			foreach($givenNames as $otherLocale => $givenName) {
-				if ($otherLocale != $locale && isset($givenName) && !empty($givenName)) {
-
-					if (!$hasAltName) {
-						$altNameNode = $doc->createElementNS($deployment->getNamespace(), 'alt-name');
-						$hasAltName = true;
-					}
-
-					$nameNode = $doc->createElementNS($deployment->getNamespace(), 'name');
-					$nameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($otherLocale));
-
-					if (!empty($familyNames[$otherLocale]) && !empty($givenNames[$otherLocale])) {
-						$nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($familyNames[$otherLocale]), ENT_COMPAT, 'UTF-8')));
-						$nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars(ucfirst($givenNames[$otherLocale]), ENT_COMPAT, 'UTF-8')));
-					} else {
-						$nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(ucfirst($givenNames[$otherLocale]), ENT_COMPAT, 'UTF-8')));
-					}
-
-					$altNameNode->appendChild($nameNode);
+			foreach (array_unique(array_merge(array_keys($givenNames), array_keys($familyNames))) as $otherLocale) {
+				if ($otherLocale == $locale) {
+					continue;
 				}
+				$otherGivenName = $this->cleanName($givenNames[$otherLocale] ?? null);
+				$otherFamilyName = $this->cleanName($familyNames[$otherLocale] ?? null);
+				if ($otherFamilyName === '') {
+					$otherFamilyName = $otherGivenName;
+					$otherGivenName = '';
+				}
+				if ($otherFamilyName === '') {
+					continue;
+				}
+
+				if (!$hasAltName) {
+					$altNameNode = $doc->createElementNS($deployment->getNamespace(), 'alt-name');
+					$hasAltName = true;
+				}
+
+				$nameNode = $doc->createElementNS($deployment->getNamespace(), 'name');
+				$nameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($otherLocale));
+				$nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', $this->xmlEscape(mb_substr($otherFamilyName, 0, self::SURNAME_MAX_LENGTH))));
+				if ($otherGivenName !== '') {
+					$nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', $this->xmlEscape(mb_substr($otherGivenName, 0, self::GIVEN_NAME_MAX_LENGTH))));
+				}
+
+				$altNameNode->appendChild($nameNode);
 			}
 
 			if ($hasAltName && $altNameNode) {
@@ -598,6 +633,32 @@ class CrossrefXmlFilter extends NativeExportFilter
         }
 
         return $dispatcher;
+    }
+
+    /**
+     * Return the ORCID iD of an author if it is valid for Crossref, otherwise null.
+     * An iD that does not match the schema would make Crossref refuse the whole deposit.
+     */
+    protected function getDepositableOrcid($author): ?string
+    {
+        $orcid = trim((string) $author->getData('orcid'));
+        return preg_match('#^https?://orcid\.org/\d{4}-\d{4}-\d{4}-\d{3}[\dX]$#', $orcid) ? $orcid : null;
+    }
+
+    /**
+     * Trim a name. A name made of blanks is returned as an empty string.
+     */
+    protected function cleanName($value): string
+    {
+        return trim((string) ($value ?? ''));
+    }
+
+    /**
+     * Convert a value that may contain HTML markup and entities to plain text.
+     */
+    protected function plainText($value): string
+    {
+        return trim(html_entity_decode(strip_tags((string) ($value ?? '')), ENT_QUOTES | ENT_HTML5, 'UTF-8'));
     }
 
     function xmlEscape($value): string {
