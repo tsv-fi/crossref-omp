@@ -1,0 +1,162 @@
+msgid ""
+msgstr ""
+"Project-Id-Version: \n"
+"Report-Msgid-Bugs-To: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2019-09-30T07:09:52-07:00\n"
+"PO-Revision-Date: 2019-09-30T07:09:52-07:00\n"
+"Language: \n"
+
+msgid "plugins.importexport.crossref.displayName"
+msgstr "Crossref XML Eksport Plugin"
+
+msgid "plugins.importexport.crossref.description"
+msgstr "Eksporter bogmetadata i Crossref XML-format."
+
+msgid "plugins.generic.crossref.displayName"
+msgstr "Crossref Manager Plugin"
+
+msgid "plugins.generic.crossref.description"
+msgstr "Håndterer deponering og eksportering af Crossref metadata"
+
+msgid "plugins.importexport.crossref.requirements"
+msgstr "Krav"
+
+msgid "plugins.importexport.crossref.requirements.satisfied"
+msgstr "Alle plugin-krav er opfyldt."
+
+msgid "plugins.importexport.crossref.error.publisherNotConfigured"
+msgstr "En udgiver er ikke blevet konfigureret! Du skal tilføje en udgiverinstitution på <a href=\"{$pressSettingsUrl}\" target=\"_blank\">Udgiver-konfigurtionssiden</a>."
+
+msgid "plugins.importexport.crossref.error.noDOIContentObjects"
+msgstr "Bøger er ikke valgt til at få tildelt en DOI i "DOI public identifier plugin", så derfor er der ikke mulighed for at deponere eller eksportere i dette plugin."
+
+msgid "plugins.importexport.crossref.settings"
+msgstr "Crossref Indstillinger"
+
+msgid "plugins.importexport.crossref.settings.depositorIntro"
+msgstr "Følgende er påkrævet for succesfuldt at kunne deponere til Crossref."
+
+msgid "plugins.importexport.crossref.settings.form.depositorName"
+msgstr "Deponentens navn"
+
+msgid "plugins.importexport.crossref.settings.form.depositorName.description"
+msgstr "Navnet på den organisation, der registrerer DOI'erne. Det inkluderes i deponerede metadata og bruges til at registrere hvem, der foretog deponeringen."
+
+msgid "plugins.importexport.crossref.settings.form.depositorEmail"
+msgstr "Deponentens e-mail"
+
+msgid "plugins.importexport.crossref.settings.form.depositorEmail.description"
+msgstr "E-mail adressen på det individ, der er ansvarlig for at registrere indholdet hos Crossref. Den inkluderes i den deponerede metadata og bruges, når der sendes en bekræftelses-e-mail på deponeringen."
+
+msgid "plugins.importexport.crossref.settings.form.depositorNameRequired"
+msgstr "Angiv venligst deponentens navn."
+
+msgid "plugins.importexport.crossref.settings.form.depositorEmailRequired"
+msgstr "Angiv venligst deponentens e-mail."
+
+msgid "plugins.importexport.crossref.registrationIntro"
+msgstr ""
+"<p>Hvis du gerne vil anvende dette plugin til at registrere Digital Object Identifiers (DOI'er) direkte hos <a href=\"http://www.crossref.org/\\">Crossref</a>, skal du angive dit <a href=\"https://www.crossref.org/documentation/member-setup/account-credentials/\\">Crossref-brugeroplysninger</a> i felterne til brugernavn og kodeord nedenfor.</p>"
+"<p>Der er to måder at angive brugernavn og kodeord på, afhængig af dit Crossref medlemsskab:</p>"
+"<ul>"
+"<li>Hvis du bruger en organisationskonto, skal du tilføje dit <a href=\"https://www.crossref.org/documentation/member-setup/account-credentials/#00376%5C%5C">delte brugernavn og kodeord</a></li>"
+"<li>Hvis du anvender en <a href=\"https://www.crossref.org/documentation/member-setup/account-credentials/#00368%5C%5C">personlig konto</a>, skal du angive din e-mail og rolle i brugernavns-feltet. Brugernavnet vil se ud som: email@example.com/rolle</li>"
+"<li>Hvis du ikke kender eller har adgng til dine Crossref brugeroplysninger, kan du kontakte <a href=\"https://support.crossref.org/\\">Crossref support</a> for at få hjælp. Uden brugeroplysninger kan du stadig eksportere metadata i Crossref's XML-format, men du an ikke registrere dine DOI'er hos Crossref gennem OMP.</li>"
+"</ul>"
+
+msgid "plugins.importexport.crossref.settings.form.username"
+msgstr "Brugernavn"
+
+msgid "plugins.importexport.crossref.settings.form.username.description"
+msgstr "Crossref brugernavnet, der skal anvendes til at verificere dine deponeringer. Hvis du anvender en personlig konto, så læs venligst anvisningen ovenfor."
+
+msgid "plugins.importexport.crossref.settings.form.usernameRequired"
+msgstr "Aniv venligst det brugernavn, du har fået fra Crossref."
+
+msgid "plugins.importexport.crossref.settings.form.automaticRegistration.description"
+msgstr "OMP vil automatisk deponere de tildelte DOI'er hos Crossref. Bemærk, at der kan gå lidt tid fra publikation til deponeringen er foretaget (afhængig af din opsætning af cronjob). Du kan tjekke for alle uregistrerede DOI'er."
+
+#, fuzzy
+msgid "plugins.importexport.crossref.settings.form.testMode.description"
+msgstr "Brug CrossRef test-API til DOI-deponering (testmiljø). Glem ikke at fjerne denne mulighed under produktionen."
+
+msgid "plugins.importexport.crossref.settings.form.validation"
+msgstr "Validér XML. Brug denne mulighed ved XML-download til den manuelle DOI-registrering."
+
+msgid "plugins.importexport.crossref.settings.form.onlyValidateExport"
+msgstr "Validér kun eksport. Download ikke filen."
+
+msgid "plugins.importexport.crossref.status.failed"
+msgstr "Fejlet"
+
+msgid "plugins.importexport.crossref.status.registered"
+msgstr "Aktiv"
+
+msgid "plugins.importexport.crossref.status.markedRegistered"
+msgstr "Markeret aktiv"
+
+msgid "plugins.importexport.crossref.status.notDeposited"
+msgstr "Ikke deponeret"
+
+msgid "plugins.importexport.crossref.action.register"
+msgstr "Deponer"
+
+msgid "plugins.importexport.crossref.statusLegend"
+msgstr ""
+"\n"
+"\t\t<p>Deponeringsstatus:</p>\n"
+"\t\t<p>\n"
+"\t\t- Ikke deponeret: Ingen forsøg på deponering er foretaget for denne DOI.<br />\n"
+"\t\t- Aktive: Denne DOI er blevet deponeret og virker korrekt.<br />\n"
+"\t\t- Fejlet: Denne DOI-deponering fejlede.<br />\n"
+"\t\t- Markeret aktiv: Denne DOI blev manuelt markeret som værende aktiv. \n"
+"\t\t</p>\n"
+"\t\t<p>Det er kun status for det seneste deponeringsforsøg der vises.</p>\n"
+"\t\t<p>Hvis der er sket en fejldeponering, bedes du løse problemet og foretage et nyt deponeringsforsøg.</p>"
+
+msgid "plugins.importexport.crossref.action.export"
+msgstr "Eksporter"
+
+msgid "plugins.importexport.crossref.action.markRegistered"
+msgstr "Marker aktiv"
+
+msgid "plugins.importexport.crossref.senderTask.name"
+msgstr "Crossref automatisk registreringsopgave"
+
+msgid "plugins.importexport.crossref.cliUsage"
+msgstr ""
+"Usage:\n"
+"{$scriptName} {$pluginName} export [xmlFileName] [press_path] books objectId1 [objectId2] ...\n"
+"{$scriptName} {$pluginName} register [press_path] books objectId1 [objectId2] ...\n"
+""
+
+msgid "plugins.importexport.crossref.register.error.mdsError"
+msgstr "Registreringen var ikke vellykket! DOI registreringsserveren returnerede en fejl."
+
+msgid "plugins.importexport.crossref.register.success.warning"
+msgstr "Registreringen var vellykket, men følgende advarsel opstod: '{$param}'."
+
+msgid "plugins.importexport.crossref.export.error.bookNotFound"
+msgstr "Ingen bog matchede det specificerede ID \"{$bookId}\"."
+
+msgid "plugins.generic.crossref.registrationAgency.name"
+msgstr "Crossref"
+
+msgid "plugins.generic.crossref.successMessage"
+msgstr ""
+"Metadata for dette objects er blevet deponeret hos Crossref."
+"For at se yderligere detaljer, se venligst indsendelsen i <a href=\"https://doi.crossref.org/servlet/submissionAdmin?sf=detail&submissionID={$submissionId}\\">Crossref admin panel</a>."
+
+msgid "plugins.importexport.crossref.settings.form.password"
+msgstr "Kodeord"
+
+msgid "plugins.importexport.crossref.settings.form.password.description"
+msgstr "Bemærk: Adgangskoden gemmes som almindelig tekst dvs. ikke-krypteret."
+
+msgid "plugins.importexport.crossref.missingRequirements"
+msgstr "Plugin-krav er ikke opfyldt"
