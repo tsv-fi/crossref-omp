@@ -21,6 +21,7 @@ use APP\facades\Repo;
 use APP\monograph\Chapter;
 use APP\monograph\ChapterDAO;
 use APP\plugins\generic\crossref\classes\CrossrefSettings;
+use APP\plugins\generic\crossref\classes\migration\UpdateCrossrefSchemaMigration;
 use APP\plugins\IDoiRegistrationAgency;
 use APP\services\ContextService;
 use APP\submission\Submission;
@@ -72,6 +73,14 @@ class CrossrefPlugin extends GenericPlugin implements IDoiRegistrationAgency
         }
 
         return $success;
+    }
+
+    /**
+     * @copydoc Plugin::getInstallMigration()
+     */
+    public function getInstallMigration()
+    {
+        return new UpdateCrossrefSchemaMigration();
     }
 
     /**

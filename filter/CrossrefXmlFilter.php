@@ -34,11 +34,10 @@ use PKP\db\DAORegistry;
 
 class CrossrefXmlFilter extends NativeExportFilter
 {
-    // Maximum name lengths in the Crossref 4.3.7 schema
-    public const SURNAME_MAX_LENGTH = 45;
-    public const GIVEN_NAME_MAX_LENGTH = 35;
-    public const AFFILIATIONS_MAX_COUNT = 5;
-    public const AFFILIATION_MAX_LENGTH = 512;
+    // Maximum name lengths in the Crossref 5.4.0 schema
+    public const SURNAME_MAX_LENGTH = 60;
+    public const GIVEN_NAME_MAX_LENGTH = 60;
+    public const INSTITUTION_NAME_MAX_LENGTH = 1024;
 
     /**
      * Constructor
@@ -133,7 +132,7 @@ class CrossrefXmlFilter extends NativeExportFilter
         $plugin = $deployment->getPlugin();
         
         $headNode = $doc->createElementNS($deployment->getNamespace(), 'head');
-        $headNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'doi_batch_id', htmlspecialchars($context->getData('initials', $context->getPrimaryLocale()) . '_' . time(), ENT_COMPAT, 'UTF-8')));
+        $headNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'doi_batch_id', htmlspecialchars($context->getData('acronym', $context->getPrimaryLocale()) . '_' . time(), ENT_COMPAT, 'UTF-8')));
         $timestampNode = $doc->createElementNS($deployment->getNamespace(), 'timestamp', date('YmdHisv'));
         $headNode->appendChild($timestampNode);
         
@@ -256,12 +255,8 @@ class CrossrefXmlFilter extends NativeExportFilter
 		}
 		$bookMetadataNode->appendChild($titlesNode);
 
-		// Abstract
-		if ($abstract = $publication->getLocalizedData('abstract', $locale)) {
-			$abstractNode = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:abstract');
-			$abstractNode->appendChild($node = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:p', htmlspecialchars(html_entity_decode(strip_tags($abstract), ENT_COMPAT, 'UTF-8'), ENT_COMPAT, 'UTF-8')));
-			$bookMetadataNode->appendChild($abstractNode);
-		}
+		// Abstracts
+		$this->appendAbstractNodes($doc, $bookMetadataNode, $publication->getData('abstract'));
 
 		// Book publication date
 		$datePublished = $publication->getData('datePublished');
@@ -302,6 +297,11 @@ class CrossrefXmlFilter extends NativeExportFilter
         }
 		$bookMetadataNode->appendChild($publisherNode);
 
+		// License
+		if ($licenseUrl = $publication->getData('licenseUrl')) {
+			$bookMetadataNode->appendChild($this->createLicenseNode($doc, $licenseUrl));
+		}
+
 		// DOI data
         $request = Application::get()->getRequest();
         $dispatcher = $this->_getDispatcher($request);
@@ -313,7 +313,8 @@ class CrossrefXmlFilter extends NativeExportFilter
 		$bookMetadataNode->appendChild($doiDataNode);
 
         //Citations
-        if ($publication->getData('citationsRaw')) {
+        // citationsRaw is a Stringable object, so check the string value
+        if (trim((string) $publication->getData('citationsRaw')) !== '') {
             $bookMetadataNode->appendChild($this->createCitationsNode($doc, $publication));
         }
 
@@ -401,12 +402,8 @@ class CrossrefXmlFilter extends NativeExportFilter
 		}
 		$contentItemNode->appendChild($titlesNode);
 
-		// Abstract
-		if ($abstract = $chapter->getLocalizedData('abstract', $locale)) {
-			$abstractNode = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:abstract');
-			$abstractNode->appendChild($node = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:p', htmlspecialchars(html_entity_decode(strip_tags($abstract), ENT_COMPAT, 'UTF-8'), ENT_COMPAT, 'UTF-8')));
-			$contentItemNode->appendChild($abstractNode);
-		}
+		// Abstracts
+		$this->appendAbstractNodes($doc, $contentItemNode, $chapter->getData('abstract'));
 
 		// Date published
 		$datePublished = $publication->getData('datePublished');
@@ -438,6 +435,11 @@ class CrossrefXmlFilter extends NativeExportFilter
                 $contentItemNode->appendChild($pagesNode);
             }
         }
+
+		// License: the chapter license, otherwise the book license
+		if ($licenseUrl = $chapter->getLicenseUrl() ?: $publication->getData('licenseUrl')) {
+			$contentItemNode->appendChild($this->createLicenseNode($doc, $licenseUrl));
+		}
 
 		// DOI data
         $request = Application::get()->getRequest();
@@ -480,96 +482,91 @@ class CrossrefXmlFilter extends NativeExportFilter
 
 		$contributorsNode = $doc->createElementNS($deployment->getNamespace(), 'contributors');
 
-		$isFirst = true;
-		foreach ($authors as $author) {
-            $familyNames = (array) $author->getFamilyName(null);
-			$givenNames = (array) $author->getGivenName(null);
-            $givenName = $this->cleanName($givenNames[$locale] ?? null) ?: $this->cleanName($author->getLocalizedGivenName());
-            $familyName = $this->cleanName($familyNames[$locale] ?? null) ?: $this->cleanName($author->getLocalizedFamilyName());
+        $isFirst = true;
+        foreach ($authors as $author) { /** @var Author $author */
+            $personNameNode = $doc->createElementNS($deployment->getNamespace(), 'person_name');
 
-            // Crossref requires a surname: if only a given name is available, use it as the surname
-            if ($familyName === '') {
-                $familyName = $givenName;
-                $givenName = '';
-            }
-            if ($familyName === '') {
-                continue;
+            if ($isChapter || !$author->getData('isVolumeEditor')) {
+                $personNameNode->setAttribute('contributor_role', 'author');
+            } else {
+                $personNameNode->setAttribute('contributor_role', 'editor');
             }
 
-			$personNameNode = $doc->createElementNS($deployment->getNamespace(), 'person_name');
-
-			if ($isChapter || !$author->getData('isVolumeEditor')) {
-				$personNameNode->setAttribute('contributor_role', 'author');
-			} else {
-				$personNameNode->setAttribute('contributor_role', 'editor');
-			}
-
-			if ($isFirst) {
-				$personNameNode->setAttribute('sequence', 'first');
-			} else {
-				$personNameNode->setAttribute('sequence', 'additional');
-			}
-			
-			$personNameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($locale));
-
-			if ($givenName !== '') {
-				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', $this->xmlEscape(mb_substr($givenName, 0, self::GIVEN_NAME_MAX_LENGTH))));
-			}
-			$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', $this->xmlEscape(mb_substr($familyName, 0, self::SURNAME_MAX_LENGTH))));
-
-            // Affiliations: the ROR name when the affiliation has a ROR ID, otherwise the entered name
-            $affiliationNames = array_filter(array_map(fn ($name) => trim((string) $name), $author->getLocalizedAffiliationNames($locale)));
-            foreach (array_slice($affiliationNames, 0, self::AFFILIATIONS_MAX_COUNT) as $affiliationName) {
-                $affiliationNode = $doc->createElementNS(
-                    $deployment->getNamespace(),
-                    'affiliation',
-                    $this->xmlEscape(mb_substr($affiliationName, 0, self::AFFILIATION_MAX_LENGTH))
-                );
-                $personNameNode->appendChild($affiliationNode);
+            if ($isFirst) {
+                $personNameNode->setAttribute('sequence', 'first');
+            } else {
+                $personNameNode->setAttribute('sequence', 'additional');
             }
-			if ($orcid = $this->getDepositableOrcid($author)) {
-				$personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $orcid));
-				$node->setAttribute('authenticated', $author->getData('orcidIsVerified') ? 'true' : 'false');
-			}
 
-			$altNameNode = null;
-            $hasAltName = false;
-			foreach (array_unique(array_merge(array_keys($givenNames), array_keys($familyNames))) as $otherLocale) {
-				if ($otherLocale == $locale) {
-					continue;
-				}
-				$otherGivenName = $this->cleanName($givenNames[$otherLocale] ?? null);
-				$otherFamilyName = $this->cleanName($familyNames[$otherLocale] ?? null);
-				if ($otherFamilyName === '') {
-					$otherFamilyName = $otherGivenName;
-					$otherGivenName = '';
-				}
-				if ($otherFamilyName === '') {
-					continue;
-				}
+            $familyNames = $author->getFamilyName(null);
+            $givenNames = $author->getGivenName(null);
 
-				if (!$hasAltName) {
-					$altNameNode = $doc->createElementNS($deployment->getNamespace(), 'alt-name');
-					$hasAltName = true;
-				}
+            // Check if both givenName and familyName is set for the submission language.
+            if (!empty($familyNames[$locale]) && !empty($givenNames[$locale])) {
+                $personNameNode->setAttribute('language', \Locale::getPrimaryLanguage($locale));
+                $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars(mb_substr($givenNames[$locale], 0, self::GIVEN_NAME_MAX_LENGTH), ENT_COMPAT, 'UTF-8')));
+                $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(mb_substr($familyNames[$locale], 0, self::SURNAME_MAX_LENGTH), ENT_COMPAT, 'UTF-8')));
+            } else {
+                $personNameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(mb_substr($givenNames[$locale], 0, self::SURNAME_MAX_LENGTH), ENT_COMPAT, 'UTF-8')));
+            }
 
-				$nameNode = $doc->createElementNS($deployment->getNamespace(), 'name');
-				$nameNode->setAttribute('language', LocaleConversion::getIso1FromLocale($otherLocale));
-				$nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', $this->xmlEscape(mb_substr($otherFamilyName, 0, self::SURNAME_MAX_LENGTH))));
-				if ($otherGivenName !== '') {
-					$nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', $this->xmlEscape(mb_substr($otherGivenName, 0, self::GIVEN_NAME_MAX_LENGTH))));
-				}
+            $affiliationsNode = null;
+            foreach ($author->getAffiliations() as $affiliation) {
+                $institutionName = $affiliation->getLocalizedName($locale);
+                if (trim($institutionName ?? '') === '') {
+                    continue;
+                }
+                if ($affiliationsNode === null) {
+                    $affiliationsNode = $doc->createElementNS($deployment->getNamespace(), 'affiliations');
+                }
+                $institutionNode = $doc->createElementNS($deployment->getNamespace(), 'institution');
+                $institutionNameNode = $doc->createElementNS($deployment->getNamespace(), 'institution_name', htmlspecialchars(mb_substr($institutionName, 0, self::INSTITUTION_NAME_MAX_LENGTH), ENT_COMPAT, 'UTF-8'));
+                $institutionNode->appendChild($institutionNameNode);
+                $rorId = $affiliation->getRor();
+                if ($rorId) {
+                    $institutionIdNode = $doc->createElementNS($deployment->getNamespace(), 'institution_id', $rorId);
+                    $institutionIdNode->setAttribute('type', 'ror');
+                    $institutionNode->appendChild($institutionIdNode);
+                }
+                $affiliationsNode->appendChild($institutionNode);
+            }
+            if ($affiliationsNode !== null) {
+                $personNameNode->appendChild($affiliationsNode);
+            }
 
-				$altNameNode->appendChild($nameNode);
-			}
+            if ($author->getData('orcid')) {
+                $orcidNode = $doc->createElementNS($deployment->getNamespace(), 'ORCID', $author->getData('orcid'));
+                $orcidAuthenticated = $author->getData('orcidIsVerified') ? 'true' : 'false';
+                $orcidNode->setAttribute('authenticated', $orcidAuthenticated);
+                $personNameNode->appendChild($orcidNode);
+            }
 
-			if ($hasAltName && $altNameNode) {
-				$personNameNode->appendChild($altNameNode);
-			}
+            if (!empty($familyNames[$locale]) && !empty($givenNames[$locale])) {
+                $hasAltName = false;
+                foreach ($familyNames as $otherLocal => $familyName) {
+                    if ($otherLocal != $locale && isset($familyName) && !empty($familyName)) {
+                        if (!$hasAltName) {
+                            $altNameNode = $doc->createElementNS($deployment->getNamespace(), 'alt-name');
+                            $personNameNode->appendChild($altNameNode);
+                            $hasAltName = true;
+                        }
 
-			$contributorsNode->appendChild($personNameNode);
-			$isFirst = false;
-		}
+                        $nameNode = $doc->createElementNS($deployment->getNamespace(), 'name');
+                        $nameNode->setAttribute('language', \Locale::getPrimaryLanguage($otherLocal));
+
+                        $nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'surname', htmlspecialchars(mb_substr($familyName, 0, self::SURNAME_MAX_LENGTH), ENT_COMPAT, 'UTF-8')));
+                        if (isset($givenNames[$otherLocal]) && !empty($givenNames[$otherLocal])) {
+                            $nameNode->appendChild($node = $doc->createElementNS($deployment->getNamespace(), 'given_name', htmlspecialchars(mb_substr($givenNames[$otherLocal], 0, self::GIVEN_NAME_MAX_LENGTH), ENT_COMPAT, 'UTF-8')));
+                        }
+
+                        $altNameNode->appendChild($nameNode);
+                    }
+                }
+            }
+
+            $contributorsNode->appendChild($personNameNode);
+            $isFirst = false;
+        }
 
         if (!$contributorsNode->hasChildNodes()) {
             return null;
@@ -607,13 +604,14 @@ class CrossrefXmlFilter extends NativeExportFilter
                 $citationList[] = $citation->getData('rawCitation');
             }
         } else {
-            $citationList = explode("\n", $publication->getData('citationsRaw'));
+            $citationList = explode("\n", (string) $publication->getData('citationsRaw'));
         }
+        $citationList = array_values(array_filter(array_map('trim', $citationList), 'strlen'));
 
         foreach ($citationList as $key => $citation) {
             $citationNode = $doc->createElementNS($deployment->getNamespace(), 'citation');
             $citationNode->setAttribute('key', 'ref' . ($key + 1));
-            $unstructuredcitationNode = $doc->createElementNS($deployment->getNamespace(), 'unstructured_citation', $citation);
+            $unstructuredcitationNode = $doc->createElementNS($deployment->getNamespace(), 'unstructured_citation', $this->xmlEscape($citation));
             $citationNode->appendChild($unstructuredcitationNode);
             $citationsNode->appendChild($citationNode);
         }
@@ -624,6 +622,44 @@ class CrossrefXmlFilter extends NativeExportFilter
     //
     // Helper functions
     //
+
+    /**
+     * Append a 'jats:abstract' node for each abstract language.
+     *
+     * @param \DOMDocument $doc
+     * @param \DOMElement $parentNode
+     * @param ?array $abstracts Abstracts keyed by locale
+     */
+    protected function appendAbstractNodes($doc, $parentNode, $abstracts)
+    {
+        $deployment = $this->getDeployment();
+        foreach ($abstracts ?: [] as $lang => $abstract) {
+            if (trim(strip_tags((string) $abstract)) === '') {
+                continue;
+            }
+            $abstractNode = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:abstract');
+            $abstractNode->setAttributeNS($deployment->getXMLNamespace(), 'xml:lang', LocaleConversion::toBcp47($lang));
+            $abstractNode->appendChild($node = $doc->createElementNS($deployment->getJATSNamespace(), 'jats:p', htmlspecialchars(html_entity_decode(strip_tags($abstract), ENT_COMPAT, 'UTF-8'), ENT_COMPAT, 'UTF-8')));
+            $parentNode->appendChild($abstractNode);
+        }
+    }
+
+    /**
+     * Create and return the access indicators node 'ai:program' with the license URL.
+     *
+     * @param \DOMDocument $doc
+     * @param string $licenseUrl
+     *
+     * @return \DOMElement
+     */
+    protected function createLicenseNode($doc, $licenseUrl)
+    {
+        $deployment = $this->getDeployment();
+        $licenseNode = $doc->createElementNS($deployment->getAINamespace(), 'ai:program');
+        $licenseNode->setAttribute('name', 'AccessIndicators');
+        $licenseNode->appendChild($node = $doc->createElementNS($deployment->getAINamespace(), 'ai:license_ref', htmlspecialchars($licenseUrl, ENT_COMPAT, 'UTF-8')));
+        return $licenseNode;
+    }
 
     /**
      * Helper to ensure dispatcher is available even when called from CLI tools
@@ -637,24 +673,6 @@ class CrossrefXmlFilter extends NativeExportFilter
         }
 
         return $dispatcher;
-    }
-
-    /**
-     * Return the ORCID iD of an author if it is valid for Crossref, otherwise null.
-     * An iD that does not match the schema would make Crossref refuse the whole deposit.
-     */
-    protected function getDepositableOrcid($author): ?string
-    {
-        $orcid = trim((string) $author->getData('orcid'));
-        return preg_match('#^https?://orcid\.org/\d{4}-\d{4}-\d{4}-\d{3}[\dX]$#', $orcid) ? $orcid : null;
-    }
-
-    /**
-     * Trim a name. A name made of blanks is returned as an empty string.
-     */
-    protected function cleanName($value): string
-    {
-        return trim((string) ($value ?? ''));
     }
 
     /**

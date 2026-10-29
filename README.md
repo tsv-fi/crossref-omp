@@ -5,7 +5,7 @@ OMP 3.5
 #### Introduction
 This plugin registers DOIS for monographs and chapters for DOI provider [Crossref.org](https://crossref.org).
 
-Current Schema version is [4.3.7](https://www.crossref.org/documentation/schema-library/metadata-deposit-schema-4-3-7/)
+Current Schema version is [5.4.0](https://www.crossref.org/documentation/schema-library/metadata-deposit-schema-5-4-0/)
 
 ####  Installation
 ```bash
